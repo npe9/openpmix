@@ -34,9 +34,16 @@ headers = \
 sources = \
         gds_ds21_base.c \
         gds_ds21_lock.c \
-        gds_ds21_lock_pthread.c \
         gds_ds21_component.c \
         gds_ds21_file.c
+
+if HAVE_DSTORE_PTHREAD_LOCK
+sources += gds_ds21_lock_pthread.c
+else
+if HAVE_DSTORE_FCNTL_LOCK
+sources += gds_ds21_lock_fcntl.c
+endif
+endif
 
 # Make the output library in this directory, and name it either
 # mca_<type>_<name>.la (for DSO builds) or libmca_<type>_<name>.la
@@ -66,3 +73,5 @@ endif
 noinst_LTLIBRARIES = $(lib)
 libpmix_mca_gds_ds21_la_SOURCES = $(lib_sources)
 libpmix_mca_gds_ds21_la_LDFLAGS = -module -avoid-version
+# Static build needs common_dstore (pmix_common_dstor_*) for gds_ds21_base.c
+libpmix_mca_gds_ds21_la_LIBADD = $(PMIX_TOP_BUILDDIR)/src/mca/common/dstore/libpmix_mca_common_dstore.la

@@ -74,3 +74,5 @@ endif
 noinst_LTLIBRARIES = $(lib)
 libpmix_mca_gds_ds12_la_SOURCES = $(lib_sources)
 libpmix_mca_gds_ds12_la_LDFLAGS = -module -avoid-version
+# Static build needs common_dstore (pmix_common_dstor_*) for gds_ds12_base.c
+libpmix_mca_gds_ds12_la_LIBADD = $(PMIX_TOP_BUILDDIR)/src/mca/common/dstore/libpmix_mca_common_dstore.la
