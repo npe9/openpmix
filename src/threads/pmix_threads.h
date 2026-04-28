@@ -36,6 +36,11 @@
 #    include "src/util/pmix_output.h"
 #endif
 
+#ifdef HAVE_LITHE
+#include <lithe/condvar.h>
+#include <lithe/fork_join_sched.h>
+#endif
+
 #include "pmix_mutex.h"
 
 BEGIN_C_DECLS
@@ -49,6 +54,10 @@ struct pmix_thread_t {
     pmix_thread_fn_t t_run;
     void *t_arg;
     pthread_t t_handle;
+#ifdef HAVE_LITHE
+    volatile int t_lithe_done;
+    void *t_lithe_ret;
+#endif
 };
 
 typedef struct pmix_thread_t pmix_thread_t;
@@ -59,8 +68,53 @@ PMIX_EXPORT extern bool pmix_debug_threads;
 
 PMIX_EXPORT PMIX_CLASS_DECLARATION(pmix_thread_t);
 
-#define pmix_condition_wait(a, b) pthread_cond_wait(a, &(b)->m_lock_pthread)
+#ifdef HAVE_LITHE
+
+/* Host (OPAL, MPICH MPL, …) must call this after entering its fork-join sched and before PMIx starts Lithe threads. */
+PMIX_EXPORT void pmix_lithe_register_fork_join_sched(lithe_fork_join_sched_t *sched);
+PMIX_EXPORT lithe_fork_join_sched_t *pmix_lithe_get_fork_join_sched(void);
+
+typedef lithe_condvar_t pmix_condition_t;
+#define pmix_condition_wait(a, b)    lithe_condvar_wait(a, &(b)->m_lock_lithe)
+#define pmix_condition_broadcast(a)  lithe_condvar_broadcast(a)
+#define pmix_condition_signal(a)     lithe_condvar_signal(a)
+#define PMIX_CONDITION_STATIC_INIT   {{0}}
+
+typedef struct {
+    pmix_status_t status;
+    pmix_mutex_t mutex;
+    pmix_condition_t cond;
+    volatile bool active;
+    volatile int cond_initialized;
+} pmix_lock_t;
+
+#define PMIX_LOCK_STATIC_INIT               \
+    {                                       \
+        .status = PMIX_SUCCESS,             \
+        .mutex = PMIX_MUTEX_STATIC_INIT,    \
+        .cond = PMIX_CONDITION_STATIC_INIT, \
+        .active = false,                    \
+        .cond_initialized = 0               \
+    }
+
+#define PMIX_CONSTRUCT_LOCK(l)                     \
+    do {                                           \
+        PMIX_CONSTRUCT(&(l)->mutex, pmix_mutex_t); \
+        lithe_condvar_init(&(l)->cond);            \
+        (l)->cond_initialized = 1;                 \
+        /* coverity[missing_lock : FALSE] */       \
+        (l)->active = true;                        \
+    } while (0)
+
+#define PMIX_DESTRUCT_LOCK(l)             \
+    do {                                  \
+        PMIX_DESTRUCT(&(l)->mutex);       \
+    } while (0)
+
+#else /* !HAVE_LITHE */
+
 typedef pthread_cond_t pmix_condition_t;
+#define pmix_condition_wait(a, b) pthread_cond_wait(a, &(b)->m_lock_pthread)
 #define pmix_condition_broadcast(a) pthread_cond_broadcast(a)
 #define pmix_condition_signal(a)    pthread_cond_signal(a)
 #define PMIX_CONDITION_STATIC_INIT  PTHREAD_COND_INITIALIZER
@@ -94,9 +148,24 @@ typedef struct {
         pthread_cond_destroy(&(l)->cond); \
     } while (0)
 
+#endif /* HAVE_LITHE */
+
+#ifdef HAVE_LITHE
+#    define PMIX_ENSURE_LOCK_COND_INIT(lck)                            \
+        do {                                                           \
+            if (__builtin_expect(!(lck)->cond_initialized, 0)) {       \
+                lithe_condvar_init(&(lck)->cond);                      \
+                (lck)->cond_initialized = 1;                           \
+            }                                                          \
+        } while (0)
+#else
+#    define PMIX_ENSURE_LOCK_COND_INIT(lck) do { } while(0)
+#endif
+
 #if PMIX_ENABLE_DEBUG
 #    define PMIX_ACQUIRE_THREAD(lck)                                            \
         do {                                                                    \
+            PMIX_ENSURE_LOCK_COND_INIT(lck);                                    \
             pmix_mutex_lock(&(lck)->mutex);                                     \
             if (pmix_debug_threads) {                                           \
                 pmix_output(0, "Waiting for thread %s:%d", __FILE__, __LINE__); \
@@ -113,6 +182,7 @@ typedef struct {
 #else
 #    define PMIX_ACQUIRE_THREAD(lck)                              \
         do {                                                      \
+            PMIX_ENSURE_LOCK_COND_INIT(lck);                      \
             pmix_mutex_lock(&(lck)->mutex);                       \
             while ((lck)->active) {                               \
                 pmix_condition_wait(&(lck)->cond, &(lck)->mutex); \
@@ -125,6 +195,7 @@ typedef struct {
 #if PMIX_ENABLE_DEBUG
 #    define PMIX_WAIT_THREAD(lck)                                               \
         do {                                                                    \
+            PMIX_ENSURE_LOCK_COND_INIT(lck);                                    \
             pmix_mutex_lock(&(lck)->mutex);                                     \
             if (pmix_debug_threads) {                                           \
                 pmix_output(0, "Waiting for thread %s:%d", __FILE__, __LINE__); \
@@ -141,6 +212,7 @@ typedef struct {
 #else
 #    define PMIX_WAIT_THREAD(lck)                                 \
         do {                                                      \
+            PMIX_ENSURE_LOCK_COND_INIT(lck);                      \
             pmix_mutex_lock(&(lck)->mutex);                       \
             while ((lck)->active) {                               \
                 pmix_condition_wait(&(lck)->cond, &(lck)->mutex); \
@@ -153,6 +225,7 @@ typedef struct {
 #if PMIX_ENABLE_DEBUG
 #    define PMIX_RELEASE_THREAD(lck)                                          \
         do {                                                                  \
+            PMIX_ENSURE_LOCK_COND_INIT(lck);                                  \
             if (pmix_debug_threads) {                                         \
                 pmix_output(0, "Releasing thread %s:%d", __FILE__, __LINE__); \
             }                                                                 \
@@ -164,6 +237,7 @@ typedef struct {
 #else
 #    define PMIX_RELEASE_THREAD(lck)                \
         do {                                        \
+            PMIX_ENSURE_LOCK_COND_INIT(lck);        \
             (lck)->active = false;                  \
             PMIX_POST_OBJECT(lck);                  \
             pmix_condition_broadcast(&(lck)->cond); \
@@ -173,6 +247,7 @@ typedef struct {
 
 #define PMIX_WAKEUP_THREAD(lck)                 \
     do {                                        \
+        PMIX_ENSURE_LOCK_COND_INIT(lck);        \
         pmix_mutex_lock(&(lck)->mutex);         \
         (lck)->active = false;                  \
         PMIX_POST_OBJECT(lck);                  \

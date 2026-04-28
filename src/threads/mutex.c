@@ -27,6 +27,45 @@
 
 #include "src/threads/pmix_mutex.h"
 
+#ifdef HAVE_LITHE
+
+static void pmix_mutex_construct(pmix_mutex_t *m)
+{
+    lithe_mutex_init(&m->m_lock_lithe, NULL);
+    m->m_initialized = 1;
+#if PMIX_ENABLE_DEBUG
+    m->m_lock_debug = 0;
+    m->m_lock_file = NULL;
+    m->m_lock_line = 0;
+#endif
+}
+
+static void pmix_mutex_destruct(pmix_mutex_t *m)
+{
+    (void)m;
+}
+
+PMIX_CLASS_INSTANCE(pmix_mutex_t, pmix_object_t, pmix_mutex_construct, pmix_mutex_destruct);
+
+static void pmix_recursive_mutex_construct(pmix_recursive_mutex_t *m)
+{
+    lithe_mutexattr_t attr;
+    lithe_mutexattr_init(&attr);
+    lithe_mutexattr_settype(&attr, LITHE_MUTEX_RECURSIVE);
+    lithe_mutex_init(&m->m_lock_lithe, &attr);
+    m->m_initialized = 1;
+#if PMIX_ENABLE_DEBUG
+    m->m_lock_debug = 0;
+    m->m_lock_file = NULL;
+    m->m_lock_line = 0;
+#endif
+}
+
+PMIX_CLASS_INSTANCE(pmix_recursive_mutex_t, pmix_object_t, pmix_recursive_mutex_construct,
+                    pmix_mutex_destruct);
+
+#else /* !HAVE_LITHE */
+
 static void pmix_mutex_construct(pmix_mutex_t *m)
 {
 #if PMIX_ENABLE_DEBUG
@@ -80,3 +119,5 @@ static void pmix_recursive_mutex_construct(pmix_recursive_mutex_t *m)
 
 PMIX_CLASS_INSTANCE(pmix_recursive_mutex_t, pmix_object_t, pmix_recursive_mutex_construct,
                     pmix_mutex_destruct);
+
+#endif /* HAVE_LITHE */

@@ -32,6 +32,7 @@
 
 #include "bfrop_pmix20.h"
 #include "internal.h"
+#include "src/hwloc/pmix_hwloc.h"
 #include "src/mca/bfrops/base/base.h"
 #include "src/util/pmix_argv.h"
 #include "src/util/pmix_error.h"
@@ -88,6 +89,14 @@ pmix_status_t pmix20_bfrop_pack_buffer(pmix_pointer_array_t *regtypes, pmix_buff
         if (PMIX_SUCCESS != (rc = pmix20_bfrop_store_data_type(regtypes, buffer, v20type))) {
             return rc;
         }
+    }
+
+    /* PMIX_TOPO / PMIX_PROC_CPUSET are packed via hwloc helpers (not in the v20 type table). */
+    if (PMIX_TOPO == v20type) {
+        return pmix_hwloc_pack_topology(buffer, (pmix_topology_t *) src, regtypes);
+    }
+    if (PMIX_PROC_CPUSET == v20type) {
+        return pmix_hwloc_pack_cpuset(buffer, (pmix_cpuset_t *) src, regtypes);
     }
 
     /* Lookup the pack function for this type and call it */

@@ -40,8 +40,13 @@
 #include "src/include/pmix_config.h"
 
 #include <errno.h>
-#include <pthread.h>
 #include <stdio.h>
+
+#ifdef HAVE_LITHE
+#include <lithe/mutex.h>
+#else
+#include <pthread.h>
+#endif
 
 #include "src/class/pmix_object.h"
 
@@ -50,7 +55,12 @@ BEGIN_C_DECLS
 struct pmix_mutex_t {
     pmix_object_t super;
 
+#ifdef HAVE_LITHE
+    lithe_mutex_t m_lock_lithe;
+    volatile int m_initialized;
+#else
     pthread_mutex_t m_lock_pthread;
+#endif
 
 #if PMIX_ENABLE_DEBUG
     int m_lock_debug;
@@ -60,6 +70,19 @@ struct pmix_mutex_t {
 };
 PMIX_EXPORT PMIX_CLASS_DECLARATION(pmix_mutex_t);
 PMIX_EXPORT PMIX_CLASS_DECLARATION(pmix_recursive_mutex_t);
+
+#ifdef HAVE_LITHE
+
+#    define PMIX_MUTEX_STATIC_INIT                          \
+        {                                                   \
+            .super = PMIX_OBJ_STATIC_INIT(pmix_mutex_t),    \
+            .m_lock_lithe = {{0}},                          \
+            .m_initialized = 0,                             \
+        }
+
+#    define PMIX_RECURSIVE_MUTEX_STATIC_INIT PMIX_MUTEX_STATIC_INIT
+
+#else /* !HAVE_LITHE */
 
 #if defined(PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP)
 #    define PMIX_PTHREAD_RECURSIVE_MUTEX_INITIALIZER PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP
@@ -101,11 +124,42 @@ PMIX_EXPORT PMIX_CLASS_DECLARATION(pmix_recursive_mutex_t);
 
 #endif
 
+#endif /* HAVE_LITHE */
+
 /************************************************************************
  *
  * mutex operations (non-atomic versions)
  *
  ************************************************************************/
+
+#ifdef HAVE_LITHE
+
+static inline void pmix_mutex_ensure_init(pmix_mutex_t *m)
+{
+    if (__builtin_expect(!m->m_initialized, 0)) {
+        lithe_mutex_init(&m->m_lock_lithe, NULL);
+        m->m_initialized = 1;
+    }
+}
+
+static inline int pmix_mutex_trylock(pmix_mutex_t *m)
+{
+    pmix_mutex_ensure_init(m);
+    return lithe_mutex_trylock(&m->m_lock_lithe);
+}
+
+static inline void pmix_mutex_lock(pmix_mutex_t *m)
+{
+    pmix_mutex_ensure_init(m);
+    lithe_mutex_lock(&m->m_lock_lithe);
+}
+
+static inline void pmix_mutex_unlock(pmix_mutex_t *m)
+{
+    lithe_mutex_unlock(&m->m_lock_lithe);
+}
+
+#else /* !HAVE_LITHE */
 
 static inline int pmix_mutex_trylock(pmix_mutex_t *m)
 {
@@ -149,6 +203,8 @@ static inline void pmix_mutex_unlock(pmix_mutex_t *m)
     pthread_mutex_unlock(&m->m_lock_pthread);
 #endif
 }
+
+#endif /* HAVE_LITHE */
 
 
 /************************************************************************

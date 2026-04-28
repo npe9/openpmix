@@ -33,4 +33,5 @@ headers += \
 
 sources += \
         threads/mutex.c \
+        threads/pmix_lithe_fork_join_api.c \
         threads/thread.c

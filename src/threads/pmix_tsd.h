@@ -18,8 +18,6 @@
 
 #include "src/include/pmix_config.h"
 
-#include <pthread.h>
-
 #include "pmix_common.h"
 
 BEGIN_C_DECLS
@@ -36,6 +34,35 @@ BEGIN_C_DECLS
  * Prototype for callback when tsd data is being destroyed
  */
 typedef void (*pmix_tsd_destructor_t)(void *value);
+
+#ifdef HAVE_LITHE
+
+#include <stdint.h>
+
+typedef uintptr_t pmix_tsd_key_t;
+
+extern int pmix_lithe_tsd_key_delete(pmix_tsd_key_t key);
+extern int pmix_lithe_tsd_setspecific(pmix_tsd_key_t key, void *value);
+extern int pmix_lithe_tsd_getspecific(pmix_tsd_key_t key, void **valuep);
+
+static inline int pmix_tsd_key_delete(pmix_tsd_key_t key)
+{
+    return pmix_lithe_tsd_key_delete(key);
+}
+
+static inline int pmix_tsd_setspecific(pmix_tsd_key_t key, void *value)
+{
+    return pmix_lithe_tsd_setspecific(key, value);
+}
+
+static inline int pmix_tsd_getspecific(pmix_tsd_key_t key, void **valuep)
+{
+    return pmix_lithe_tsd_getspecific(key, valuep);
+}
+
+#else /* !HAVE_LITHE */
+
+#include <pthread.h>
 
 typedef pthread_key_t pmix_tsd_key_t;
 
@@ -54,6 +81,8 @@ static inline int pmix_tsd_getspecific(pmix_tsd_key_t key, void **valuep)
     *valuep = pthread_getspecific(key);
     return PMIX_SUCCESS;
 }
+
+#endif /* HAVE_LITHE */
 
 /**
  * Create thread-specific data key

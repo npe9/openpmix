@@ -191,6 +191,13 @@ pmix_status_t pmix_hwloc_pack_topology(pmix_buffer_t *buf, pmix_topology_t *src,
         return PMIX_SUCCESS;
     }
 
+    /* Empty in-memory topology (e.g. client cleared pointer before relay). Same wire
+     * form as NULL src so unpack yields topology=NULL (server uses local tree). */
+    if (NULL == src->topology) {
+        PMIX_BFROPS_PACK_TYPE(rc, buf, &xmlbuffer, 1, PMIX_STRING, regtypes);
+        return PMIX_SUCCESS;
+    }
+
     if (NULL != src->source && 0 != strncasecmp(src->source, "hwloc", 5)) {
         return PMIX_ERR_NOT_SUPPORTED;
     }

@@ -43,7 +43,12 @@ pmix_status_t pmix_bfrops_base_pack(pmix_pointer_array_t *regtypes, pmix_buffer_
     pmix_status_t rc;
 
     /* check for error */
-    if (NULL == buffer || (NULL == src && 0 < num_vals)) {
+    if (NULL == buffer) {
+        PMIX_ERROR_LOG(PMIX_ERR_BAD_PARAM);
+        return PMIX_ERR_BAD_PARAM;
+    }
+    /* pmix4_pack() calls here directly; TOPO/CPUSET may encode NULL (server uses local data). */
+    if (NULL == src && 0 < num_vals && PMIX_TOPO != type && PMIX_PROC_CPUSET != type) {
         PMIX_ERROR_LOG(PMIX_ERR_BAD_PARAM);
         return PMIX_ERR_BAD_PARAM;
     }
@@ -1182,6 +1187,10 @@ pmix_status_t pmix_bfrops_base_pack_cpuset(pmix_pointer_array_t *regtypes, pmix_
 
     PMIX_HIDE_UNUSED_PARAMS(type);
 
+    if (NULL == ptr) {
+        return pmix_hwloc_pack_cpuset(buffer, NULL, regtypes);
+    }
+
     for (i = 0; i < num_vals; ++i) {
         ret = pmix_hwloc_pack_cpuset(buffer, &ptr[i], regtypes);
         if (PMIX_SUCCESS != ret) {
@@ -1305,6 +1314,10 @@ pmix_status_t pmix_bfrops_base_pack_topology(pmix_pointer_array_t *regtypes, pmi
     pmix_status_t ret;
 
     PMIX_HIDE_UNUSED_PARAMS(type);
+
+    if (NULL == ptr) {
+        return pmix_hwloc_pack_topology(buffer, NULL, regtypes);
+    }
 
     for (i = 0; i < num_vals; ++i) {
         /* call the framework to pack it */

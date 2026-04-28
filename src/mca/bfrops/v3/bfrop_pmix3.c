@@ -275,6 +275,60 @@ static pmix_status_t init(void)
                        pmix_bfrops_base_unpack_envar, pmix_bfrops_base_copy_envar,
                        pmix_bfrops_base_print_envar, &pmix_mca_bfrops_v3_component.types);
 
+    /* Flux can select URI3 / v3 bfrops; topology relay needs these (else PMIX_ERR_UNKNOWN_DATA_TYPE). */
+    PMIX_REGISTER_TYPE("PMIX_COORD", PMIX_COORD, pmix_bfrops_base_pack_coord,
+                       pmix_bfrops_base_unpack_coord, pmix_bfrops_base_copy_coord,
+                       pmix_bfrops_base_print_coord, &pmix_mca_bfrops_v3_component.types);
+
+    PMIX_REGISTER_TYPE("PMIX_REGATTR", PMIX_REGATTR, pmix_bfrops_base_pack_regattr,
+                       pmix_bfrops_base_unpack_regattr, pmix_bfrops_base_copy_regattr,
+                       pmix_bfrops_base_print_regattr, &pmix_mca_bfrops_v3_component.types);
+
+    PMIX_REGISTER_TYPE("PMIX_REGEX", PMIX_REGEX, pmix_bfrops_base_pack_regex,
+                       pmix_bfrops_base_unpack_regex, pmix_bfrops_base_copy_regex,
+                       pmix_bfrops_base_print_regex, &pmix_mca_bfrops_v3_component.types);
+
+    PMIX_REGISTER_TYPE("PMIX_JOB_STATE", PMIX_JOB_STATE, pmix_bfrops_base_pack_jobstate,
+                       pmix_bfrops_base_unpack_jobstate, pmix_bfrops_base_std_copy,
+                       pmix_bfrops_base_print_jobstate, &pmix_mca_bfrops_v3_component.types);
+
+    PMIX_REGISTER_TYPE("PMIX_LINK_STATE", PMIX_LINK_STATE, pmix_bfrops_base_pack_linkstate,
+                       pmix_bfrops_base_unpack_linkstate, pmix_bfrops_base_std_copy,
+                       pmix_bfrops_base_print_linkstate, &pmix_mca_bfrops_v3_component.types);
+
+    PMIX_REGISTER_TYPE("PMIX_PROC_CPUSET", PMIX_PROC_CPUSET, pmix_bfrops_base_pack_cpuset,
+                       pmix_bfrops_base_unpack_cpuset, pmix_bfrops_base_copy_cpuset,
+                       pmix_bfrops_base_print_cpuset, &pmix_mca_bfrops_v3_component.types);
+
+    PMIX_REGISTER_TYPE("PMIX_GEOMETRY", PMIX_GEOMETRY, pmix_bfrops_base_pack_geometry,
+                       pmix_bfrops_base_unpack_geometry, pmix_bfrops_base_copy_geometry,
+                       pmix_bfrops_base_print_geometry, &pmix_mca_bfrops_v3_component.types);
+
+    PMIX_REGISTER_TYPE("PMIX_DEVICE_DIST", PMIX_DEVICE_DIST, pmix_bfrops_base_pack_devdist,
+                       pmix_bfrops_base_unpack_devdist, pmix_bfrops_base_copy_devdist,
+                       pmix_bfrops_base_print_devdist, &pmix_mca_bfrops_v3_component.types);
+
+    PMIX_REGISTER_TYPE("PMIX_ENDPOINT", PMIX_ENDPOINT, pmix_bfrops_base_pack_endpoint,
+                       pmix_bfrops_base_unpack_endpoint, pmix_bfrops_base_copy_endpoint,
+                       pmix_bfrops_base_print_endpoint, &pmix_mca_bfrops_v3_component.types);
+
+    PMIX_REGISTER_TYPE("PMIX_TOPO", PMIX_TOPO, pmix_bfrops_base_pack_topology,
+                       pmix_bfrops_base_unpack_topology, pmix_bfrops_base_copy_topology,
+                       pmix_bfrops_base_print_topology, &pmix_mca_bfrops_v3_component.types);
+
+    PMIX_REGISTER_TYPE("PMIX_DEVTYPE", PMIX_DEVTYPE, pmix_bfrops_base_pack_devtype,
+                       pmix_bfrops_base_unpack_devtype, pmix_bfrops_base_std_copy,
+                       pmix_bfrops_base_print_devtype, &pmix_mca_bfrops_v3_component.types);
+
+    PMIX_REGISTER_TYPE("PMIX_LOCTYPE", PMIX_LOCTYPE, pmix_bfrops_base_pack_locality,
+                       pmix_bfrops_base_unpack_locality, pmix_bfrops_base_std_copy,
+                       pmix_bfrops_base_print_locality, &pmix_mca_bfrops_v3_component.types);
+
+    PMIX_REGISTER_TYPE("PMIX_COMPRESSED_BYTE_OBJECT", PMIX_COMPRESSED_BYTE_OBJECT,
+                       pmix_bfrops_base_pack_bo, pmix_bfrops_base_unpack_bo,
+                       pmix_bfrops_base_copy_bo, pmix_bfrops_base_print_bo,
+                       &pmix_mca_bfrops_v3_component.types);
+
     /**** DEPRECATED ****/
     PMIX_REGISTER_TYPE("PMIX_INFO_ARRAY", PMIX_INFO_ARRAY, pmix3_bfrop_pack_array,
                        pmix3_bfrop_unpack_array, pmix3_bfrop_copy_array, pmix3_bfrop_print_array,

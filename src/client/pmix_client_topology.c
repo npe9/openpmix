@@ -326,6 +326,12 @@ request:
     if (topo == &pmix_globals.topology) {
         topo = NULL;
     }
+    /* Same for the default process cpuset: relay NULL so the server uses its
+     * binding context; packing pmix_globals.cpuset can fail (e.g. non-hwloc
+     * source) on some launchers even when local compute_distances fell through. */
+    if (cpuset == &pmix_globals.cpuset) {
+        cpuset = NULL;
+    }
 
     /* if we are a tool or client, then relay this request to the server */
     msg = PMIX_NEW(pmix_buffer_t);

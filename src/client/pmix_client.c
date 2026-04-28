@@ -1057,7 +1057,11 @@ PMIX_EXPORT pmix_status_t PMIx_Finalize(const pmix_info_t info[], size_t ninfo)
     /* mark that I called finalize */
     pmix_globals.mypeer->finalized = true;
 
-    if (0 <= pmix_client_globals.myserver->sd) {
+    /* Flux (flux-pmix) paths can leave myserver without nptr/bfrops wired; PMIX_BFROPS_PACK derefs nptr->compat.bfrops.
+     * Require evbase for the finalize timer/send path (pmix_event_assign uses pmix_globals.evbase). */
+    if (NULL != pmix_client_globals.myserver && 0 <= pmix_client_globals.myserver->sd
+        && NULL != pmix_globals.evbase && NULL != pmix_client_globals.myserver->nptr
+        && NULL != pmix_client_globals.myserver->nptr->compat.bfrops) {
         /* check to see if we are supposed to execute a
          * blocking fence prior to actually finalizing */
         if (NULL != info && 0 < ninfo) {
@@ -1134,6 +1138,11 @@ PMIX_EXPORT pmix_status_t PMIx_Finalize(const pmix_info_t info[], size_t ninfo)
         if (NULL
             != (peer = (pmix_peer_t *) pmix_pointer_array_get_item(&pmix_client_globals.peers,
                                                                    i))) {
+            /* myserver is tracked in this array; releasing it here frees the object.
+             * Do not release until we close the socket below (use-after-free at sd). */
+            if (peer == pmix_client_globals.myserver) {
+                continue;
+            }
             PMIX_RELEASE(peer);
         }
     }
@@ -1143,11 +1152,12 @@ PMIX_EXPORT pmix_status_t PMIx_Finalize(const pmix_info_t info[], size_t ninfo)
         PMIX_LIST_DESTRUCT(&pmix_server_globals.iof_residuals);
     }
 
-    if (0 <= pmix_client_globals.myserver->sd) {
-        CLOSE_THE_SOCKET(pmix_client_globals.myserver->sd);
-    }
     if (NULL != pmix_client_globals.myserver) {
+        if (0 <= pmix_client_globals.myserver->sd) {
+            CLOSE_THE_SOCKET(pmix_client_globals.myserver->sd);
+        }
         PMIX_RELEASE(pmix_client_globals.myserver);
+        pmix_client_globals.myserver = NULL;
     }
 
     pmix_rte_finalize();

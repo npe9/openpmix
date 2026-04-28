@@ -1056,6 +1056,15 @@ static void _getnbfn(int fd, short flags, void *cbdata)
      * nothing more we can do */
     if (PMIX_PEER_IS_SERVER(pmix_globals.mypeer) ||
         (!PMIX_PEER_IS_SERVER(pmix_globals.mypeer) && !pmix_globals.connected)) {
+        pmix_output_verbose(2, pmix_client_globals.get_output,
+                            "%s pmix: getnbfn cannot contact server (peer_is_server=%s connected=%s "
+                            "peer_type=0x%x) for proc %s key %s",
+                            PMIX_NAME_PRINT(&pmix_globals.myid),
+                            PMIX_PEER_IS_SERVER(pmix_globals.mypeer) ? "true" : "false",
+                            pmix_globals.connected ? "true" : "false",
+                            (unsigned int) pmix_globals.mypeer->proc_type.type,
+                            PMIX_NAME_PRINT(&proc),
+                            (NULL == cb->key) ? "NULL" : cb->key);
         rc = PMIX_ERR_NOT_FOUND;
         goto respond;
     }
