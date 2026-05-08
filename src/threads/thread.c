@@ -34,6 +34,11 @@
 #include <lithe/fork_join_sched.h>
 #include <stdio.h>
 
+/* OMPI provides a strong opal_pmix_lithe_host_ensure_sched; embedded PMIx ships a
+ * weak empty stub so standalone libpmix links. */
+extern void opal_pmix_lithe_host_ensure_sched(void);
+extern lithe_fork_join_sched_t *opal_lithe_pmix_export_sched;
+
 /* pmix_lithe_register_fork_join_sched / pmix_lithe_get_fork_join_sched live in
  * pmix_lithe_fork_join_api.c so they are never dropped by per-TU dead-code
  * elimination (thread.c references get from pmix_thread_start; without a strong
@@ -93,6 +98,14 @@ int pmix_thread_start(pmix_thread_t *t)
     {
         lithe_fork_join_sched_t *sched = pmix_lithe_get_fork_join_sched();
         if (!sched) {
+            opal_pmix_lithe_host_ensure_sched();
+            sched = pmix_lithe_get_fork_join_sched();
+        }
+        if (!sched && NULL != opal_lithe_pmix_export_sched) {
+            pmix_lithe_register_fork_join_sched(opal_lithe_pmix_export_sched);
+            sched = pmix_lithe_get_fork_join_sched();
+        }
+        if (!sched) {
             fprintf(stderr,
                     "[PMIx-Lithe] FATAL: pmix_thread_start with no scheduler "
                     "(host must call pmix_lithe_register_fork_join_sched before PMIx progress)\n");
@@ -104,8 +117,10 @@ int pmix_thread_start(pmix_thread_t *t)
                     (void *)sched, (void *)(uintptr_t)t->t_run);
         t->t_lithe_done = 0;
         t->t_lithe_ret = NULL;
+        /* 256KiB was marginal for PMIx/Lithe progress under OMPI+UCX; guard
+         * frames and condvar paths could corrupt adjacent stacks. */
         lithe_fork_join_context_t *ctx =
-            lithe_fork_join_context_create(sched, 262144,
+            lithe_fork_join_context_create(sched, 1048576,
                                            pmix_lithe_thread_fn, t);
         if (!ctx)
             return PMIX_ERROR;
@@ -127,6 +142,14 @@ int pmix_thread_join(pmix_thread_t *t, void **thr_return)
 #ifdef HAVE_LITHE
     {
         lithe_fork_join_sched_t *sched = pmix_lithe_get_fork_join_sched();
+        if (!sched) {
+            opal_pmix_lithe_host_ensure_sched();
+            sched = pmix_lithe_get_fork_join_sched();
+        }
+        if (!sched && NULL != opal_lithe_pmix_export_sched) {
+            pmix_lithe_register_fork_join_sched(opal_lithe_pmix_export_sched);
+            sched = pmix_lithe_get_fork_join_sched();
+        }
         if (!sched) {
             fprintf(stderr,
                     "[PMIx-Lithe] FATAL: pmix_thread_join with no scheduler "

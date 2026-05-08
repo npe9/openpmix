@@ -274,6 +274,14 @@ static int start_progress_engine(pmix_progress_tracker_t *trk)
 
 #ifdef HAVE_PTHREAD_SETAFFINITY_NP
     if (NULL != pmix_progress_thread_cpus) {
+#    ifdef HAVE_LITHE
+        /* pmix_thread_start stores a lithe context pointer in t_handle, not a
+         * pthread_t; pthread_setaffinity_np is undefined and can corrupt state. */
+        if (pmix_bind_progress_thread_reqd) {
+            PMIX_ERROR_LOG(PMIX_ERR_NOT_SUPPORTED);
+            return PMIX_ERR_NOT_SUPPORTED;
+        }
+#    else
         CPU_ZERO(&cpuset);
         // comma-delimited list of cpu ranges
         ranges = PMIx_Argv_split(pmix_progress_thread_cpus, ',');
@@ -299,6 +307,7 @@ static int start_progress_engine(pmix_progress_tracker_t *trk)
             rc = PMIX_SUCCESS;
         }
         PMIx_Argv_free(ranges);
+#    endif
     }
 #endif
     return rc;

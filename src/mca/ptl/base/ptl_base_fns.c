@@ -290,6 +290,14 @@ pmix_status_t pmix_ptl_base_parse_uri_file(char *filename, pmix_list_t *connecti
                 ++retries;
                 pmix_output_verbose(2, pmix_ptl_base_framework.framework_output,
                                     "WAITING FOR CONNECTION FILE %s", filename);
+#ifdef HAVE_LITHE
+                /* lithe_condvar_wait here races PMIx progress (Lithe context) during Init; poll. */
+                if (0 < pmix_ptl_base.wait_to_connect) {
+                    usleep((useconds_t)(pmix_ptl_base.wait_to_connect * 1000000));
+                } else {
+                    usleep(10000);
+                }
+#else
                 PMIX_CONSTRUCT_LOCK(&lock);
                 if (0 < pmix_ptl_base.wait_to_connect) {
                     tv.tv_sec = pmix_ptl_base.wait_to_connect;
@@ -306,6 +314,7 @@ pmix_status_t pmix_ptl_base_parse_uri_file(char *filename, pmix_list_t *connecti
                 }
                 PMIX_WAIT_THREAD(&lock);
                 PMIX_DESTRUCT_LOCK(&lock);
+#endif
                 /* coverity[TOCTOU] */
                 if (0 == access(filename, R_OK)) {
                     goto process;
@@ -331,6 +340,10 @@ process:
             break;
         }
         fclose(fp);
+#ifdef HAVE_LITHE
+        usleep(10000);
+#else
+        PMIX_CONSTRUCT_LOCK(&lock);
         tv.tv_sec = 0;
         tv.tv_usec = 10000; // use 0.01 sec as default
         pmix_event_evtimer_set(pmix_globals.evbase, &ev, timeout, &lock);
@@ -338,6 +351,7 @@ process:
         pmix_event_evtimer_add(&ev, &tv);
         PMIX_WAIT_THREAD(&lock);
         PMIX_DESTRUCT_LOCK(&lock);
+#endif
         fp = fopen(filename, "r");
         if (NULL == fp) {
             return PMIX_ERR_UNREACH;
@@ -1104,6 +1118,13 @@ static void check_server(char *filename, pmix_list_t *servers)
                 ++retries;
                 pmix_output_verbose(2, pmix_ptl_base_framework.framework_output,
                                     "WAITING FOR CONNECTION FILE %s", filename);
+#ifdef HAVE_LITHE
+                if (0 < pmix_ptl_base.wait_to_connect) {
+                    usleep((useconds_t)(pmix_ptl_base.wait_to_connect * 1000000));
+                } else {
+                    usleep(10000);
+                }
+#else
                 PMIX_CONSTRUCT_LOCK(&lock);
                 if (0 < pmix_ptl_base.wait_to_connect) {
                     tv.tv_sec = pmix_ptl_base.wait_to_connect;
@@ -1120,6 +1141,7 @@ static void check_server(char *filename, pmix_list_t *servers)
                 }
                 PMIX_WAIT_THREAD(&lock);
                 PMIX_DESTRUCT_LOCK(&lock);
+#endif
                 /* coverity[TOCTOU] */
                 if (0 == access(filename, R_OK)) {
                     goto process;
@@ -1145,6 +1167,10 @@ process:
             break;
         }
         fclose(fp);
+#ifdef HAVE_LITHE
+        usleep(10000);
+#else
+        PMIX_CONSTRUCT_LOCK(&lock);
         tv.tv_sec = 0;
         tv.tv_usec = 10000; // use 0.01 sec as default
         pmix_event_evtimer_set(pmix_globals.evbase, &ev, timeout, &lock);
@@ -1152,6 +1178,7 @@ process:
         pmix_event_evtimer_add(&ev, &tv);
         PMIX_WAIT_THREAD(&lock);
         PMIX_DESTRUCT_LOCK(&lock);
+#endif
         fp = fopen(filename, "r");
         if (NULL == fp) {
             return;
