@@ -264,9 +264,18 @@ typedef struct event pmix_event_t;
 #else
 
 /* thread support APIs */
-#    define pmix_event_use_threads() evthread_use_pthreads()
+#    if defined(HAVE_LITHE)
+/* Libevent lith wiring happens in pmix_rte_init (OPAL hooks or pmix_lithe_evthread_wire_libevent). */
+#        define pmix_event_use_threads()
+#    else
+#        define pmix_event_use_threads() evthread_use_pthreads()
+#    endif
 #    define pmix_event_free(x)       event_free(x)
 #    define pmix_event_get_signal(x) event_get_signal(x)
+#endif
+
+#if defined(HAVE_LITHE) && !PMIX_HAVE_LIBEV
+PMIX_EXPORT int pmix_lithe_evthread_wire_libevent(void);
 #endif
 
 /* Basic event APIs */

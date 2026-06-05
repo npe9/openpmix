@@ -67,6 +67,16 @@
 #include "src/runtime/pmix_rte.h"
 #include "src/runtime/pmix_init_util.h"
 
+#ifdef HAVE_LITHE
+#    if !PMIX_HAVE_LIBEV
+extern int opal_event_use_threads(void)
+#        if defined(__GNUC__) || defined(__clang__)
+    __attribute__((weak))
+#        endif
+    ;
+#    endif
+#endif
+
 const char pmix_version_string[] = PMIX_IDENT_STRING;
 const char* pmix_tool_basename = NULL;
 const char* pmix_tool_version = PMIX_VERSION;
@@ -279,8 +289,29 @@ int pmix_rte_init(uint32_t type, pmix_info_t info[], size_t ninfo, pmix_ptl_cbfu
             }
         }
     }
-    /* tell libevent that we need thread support */
+    /* Tell libevent to use threaded-mode locks. Lith Open MPI: reuse OPAL hooks so
+     * PMIx doesn't replace global evthread callbacks after opal_event_init. */
+#if defined(HAVE_LITHE) && !PMIX_HAVE_LIBEV
+    if (opal_event_use_threads != NULL) {
+        int _opal_ev_rc = opal_event_use_threads();
+
+        if (0 != _opal_ev_rc) {
+            error = "opal_event_use_threads";
+            ret = PMIX_ERROR;
+            goto return_error;
+        }
+    } else {
+        int _pmix_ev_rc = pmix_lithe_evthread_wire_libevent();
+
+        if (0 != _pmix_ev_rc) {
+            error = "pmix_lithe_evthread_wire_libevent";
+            ret = PMIX_ERROR;
+            goto return_error;
+        }
+    }
+#else
     pmix_event_use_threads();
+#endif
 
     /* create an event base and progress thread for us */
     if (NULL == (pmix_globals.evbase = pmix_progress_thread_init(NULL))) {

@@ -35,4 +35,5 @@ sources += \
         runtime/pmix_finalize.c \
         runtime/pmix_init.c \
         runtime/pmix_params.c \
-        runtime/pmix_progress_threads.c
+        runtime/pmix_progress_threads.c \
+        runtime/pmix_lithe_evthread_wire.c
