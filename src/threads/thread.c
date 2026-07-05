@@ -120,8 +120,8 @@ int pmix_thread_start(pmix_thread_t *t)
         /* 256KiB was marginal for PMIx/Lithe progress under OMPI+UCX; guard
          * frames and condvar paths could corrupt adjacent stacks. */
         lithe_fork_join_context_t *ctx =
-            lithe_fork_join_context_create(sched, 1048576,
-                                           pmix_lithe_thread_fn, t);
+            lithe_fork_join_context_create_progress(1048576,
+                                                    pmix_lithe_thread_fn, t);
         if (!ctx)
             return PMIX_ERROR;
         t->t_handle = (pthread_t)(uintptr_t)ctx;
