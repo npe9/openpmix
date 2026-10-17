@@ -164,11 +164,25 @@ typedef struct {
 #endif
 
 #ifdef HAVE_LITHE
-#    define PMIX_THREAD_COND_WAIT(lck)        \
-        do {                                  \
-            pmix_mutex_unlock(&(lck)->mutex); \
-            lithe_context_yield();            \
-            pmix_mutex_lock(&(lck)->mutex);   \
+/* PMIX_LITHE_WAIT_BLOCK=1 (2026-10-17): block on the lock's lithe condvar
+ * instead of yield-polling. The old unlock/yield/lock loop made every PMIx
+ * wait a storm of context yields: PMIx_Finalize alone yielded 42k times per
+ * GROMACS rank (60 ms of the main context bouncing over all four harts,
+ * docs/AUDIT-perfetto-performance-20261017.md section 5, GAPS C13), and
+ * PMIx_Init / Get / Put yield-poll the same way. PMIX_RELEASE_THREAD already
+ * broadcasts the condvar. The yield loop stays for contexts that cannot block
+ * (base scheduler, constructors / destructors: lithe_can_block()==0). */
+PMIX_EXPORT int pmix_lithe_wait_block_on(void);
+PMIX_EXPORT int lithe_can_block(void);
+#    define PMIX_THREAD_COND_WAIT(lck)                                        \
+        do {                                                                  \
+            if (pmix_lithe_wait_block_on() && lithe_can_block()) {            \
+                pmix_condition_wait(&(lck)->cond, &(lck)->mutex);             \
+            } else {                                                          \
+                pmix_mutex_unlock(&(lck)->mutex);                             \
+                lithe_context_yield();                                        \
+                pmix_mutex_lock(&(lck)->mutex);                               \
+            }                                                                 \
         } while (0)
 #else
 #    define PMIX_THREAD_COND_WAIT(lck) pmix_condition_wait(&(lck)->cond, &(lck)->mutex)

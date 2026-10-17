@@ -33,8 +33,23 @@ PMIX_EXPORT lithe_fork_join_sched_t *pmix_lithe_get_fork_join_sched(void)
     return pmix_lithe_registered_fork_join_sched;
 }
 
-/* Weak: overridden by OPAL in OMPI; no-op if PMIx is built standalone. */
-void __attribute__((weak)) opal_pmix_lithe_host_ensure_sched(void) { }
+/* Weak: overridden by OPAL's strong symbol when Open MPI is linked (OPAL owns
+ * the root sched and registers opal_sched). When libpmix is built STANDALONE and
+ * consumed by a non-OMPI runtime (e.g. lithified MPICH), no OPAL export exists,
+ * so bootstrap the process-wide root fork-join scheduler here and register it.
+ * lithe_ensure_root_fork_join_sched() is idempotent and returns the SAME root
+ * that MPICH's MPL-Lithe bootstrap uses, per
+ * lithe-bootstrap-any-runtime-combination — this is composition, not a second
+ * conflicting bootstrap. */
+void __attribute__((weak)) opal_pmix_lithe_host_ensure_sched(void)
+{
+    if (NULL == pmix_lithe_get_fork_join_sched()) {
+        lithe_fork_join_sched_t *root = lithe_ensure_root_fork_join_sched();
+        if (NULL != root) {
+            pmix_lithe_register_fork_join_sched(root);
+        }
+    }
+}
 
 #else
 

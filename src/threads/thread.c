@@ -137,6 +137,22 @@ int pmix_thread_start(pmix_thread_t *t)
 #endif
 }
 
+#ifdef HAVE_LITHE
+int pmix_lithe_wait_block_on(void)
+{
+    static int on = -1;
+    if (on < 0) {
+        /* Default 1 since 2026-10-17 (A/B in docs/GAPS.md C14): yield storms gone
+         * (GROMACS teardown 89k -> 3.6k main-context dispatches), hosted RPH=8
+         * init 576 -> 383 ms, stress -3 %, everything else unchanged. =0 restores
+         * the unlock/yield/lock poll. */
+        const char *e = getenv("PMIX_LITHE_WAIT_BLOCK");
+        on = (e && *e) ? (atoi(e) != 0) : 1;
+    }
+    return on;
+}
+#endif
+
 int pmix_thread_join(pmix_thread_t *t, void **thr_return)
 {
 #ifdef HAVE_LITHE
