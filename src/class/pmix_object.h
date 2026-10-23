@@ -736,6 +736,12 @@ static inline pmix_object_t *pmix_obj_new(pmix_class_t *cls)
 static inline int pmix_obj_update(pmix_object_t *object, int inc) __pmix_attribute_always_inline__;
 static inline int pmix_obj_update(pmix_object_t *object, int inc)
 {
+#ifdef HAVE_LITHE
+    /* Lithified: every RETAIN/RELEASE took a pthread mutex; contended by a rank
+     * context and the PMIx progress context on two harts, the loser slept its
+     * hart in the kernel. A reference count needs only an atomic add. */
+    return __atomic_add_fetch(&object->obj_reference_count, inc, __ATOMIC_ACQ_REL);
+#endif
     int ret = pthread_mutex_lock(&object->obj_lock);
     if (ret == EDEADLK) {
         errno = ret;

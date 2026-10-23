@@ -29,6 +29,30 @@
 #include "src/mca/pshmem/pshmem.h"
 #include "src/class/pmix_list.h"
 
+#ifdef HAVE_LITHE
+#include <errno.h>
+#include <sched.h>
+PMIX_EXPORT int lithe_can_block(void);
+PMIX_EXPORT void lithe_context_yield(void);
+/* Lithified: these process-shared mutexes live in the dstore segment and the
+ * holder can be the PMIx server PROCESS, so no Lithe wake will come; a rank
+ * context waiting in pthread_mutex_lock slept its hart in the kernel for the
+ * whole server write. Poll with trylock and give the hart to other contexts
+ * between polls (sched_yield where the caller is not a context). */
+static int ds21_mutex_lock(pthread_mutex_t *m)
+{
+    int rc;
+    while (EBUSY == (rc = pthread_mutex_trylock(m))) {
+        if (lithe_can_block())
+            lithe_context_yield();
+        else
+            sched_yield();
+    }
+    return rc;
+}
+#define pthread_mutex_lock ds21_mutex_lock
+#endif
+
 #include "src/util/pmix_error.h"
 #include "src/util/pmix_output.h"
 
