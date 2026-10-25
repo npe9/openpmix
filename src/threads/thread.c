@@ -32,6 +32,8 @@
 #ifdef HAVE_LITHE
 #include <lithe/lithe.h>
 #include <lithe/fork_join_sched.h>
+#include <lithe/futex.h>
+#include <time.h>
 #include <stdio.h>
 
 /* OMPI provides a strong opal_pmix_lithe_host_ensure_sched; embedded PMIx ships a
@@ -44,12 +46,25 @@ extern lithe_fork_join_sched_t *opal_lithe_pmix_export_sched;
  * elimination (thread.c references get from pmix_thread_start; without a strong
  * definition in the archive, the link leaves U and libomp's weak ref fails). */
 
+static int pmix_lithe_nospin_join(void)
+{
+    static int on = -1;
+    if (on < 0) {
+        const char *e = getenv("PMIX_LITHE_NOSPIN_JOIN");
+        on = (e && '1' == e[0]) ? 1 : 0;
+    }
+    return on;
+}
+
 static void pmix_lithe_thread_fn(void *arg)
 {
     pmix_thread_t *t = (pmix_thread_t *)arg;
     t->t_lithe_ret = t->t_run((pmix_object_t *)t);
     __sync_synchronize();
     t->t_lithe_done = 1;
+    if (pmix_lithe_nospin_join()) {
+        (void) futex_wake_all((int *) &t->t_lithe_done);
+    }
 }
 #endif
 
@@ -172,8 +187,17 @@ int pmix_thread_join(pmix_thread_t *t, void **thr_return)
                     "(host must call pmix_lithe_register_fork_join_sched)\n");
             abort();
         }
+        /* PMIX_LITHE_NOSPIN_JOIN=1 (2026-10-24, default 0, .build_logs/despin/mpi/):
+         * the join was a yield loop (DESPIN_RULES Y) on the progress context's exit;
+         * block on t_lithe_done instead, woken by pmix_lithe_thread_fn (1 ms timeout as
+         * a safety net). Contexts that cannot block keep the yield. */
         while (!t->t_lithe_done) {
-            lithe_context_yield();
+            if (pmix_lithe_nospin_join() && lithe_can_block()) {
+                struct timespec rel = {0, 1000000L};
+                (void) futex_wait_timeout((int *) &t->t_lithe_done, 0, &rel);
+            } else {
+                lithe_context_yield();
+            }
         }
         t->t_handle = (pthread_t)-1;
         if (thr_return)
